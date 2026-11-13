@@ -75,3 +75,9 @@ pip install -e ".[test]" && pytest
 ```
 
 Licence: Apache-2.0.
+
+## Related
+
+- [taskmine](https://github.com/decentralizeallengineering/taskmine): turn a repo's history into agent tasks with a proven red-green check
+- [codeindex](https://github.com/decentralizeallengineering/codeindex): local code index with an MCP server, a tool set to check against
+- [all tools](https://github.com/decentralizeallengineering): the index of this account
