@@ -55,6 +55,19 @@ The percentage is by call count, not by shape count. The schema format:
 Types are `str int float number bool list dict null any`. `aliases` names an
 argument the tool accepts under another name. Python: `from toolcensus import census, check`.
 
+SCHEMA can also be a tool list as another harness exposes it: an MCP `tools/list`
+result (or the whole JSON-RPC reply), an Anthropic `tools` list (`input_schema`) or an
+OpenAI `tools` list (`function.parameters`). JSON Schema types map to the types above;
+an extra argument is `ignored` unless the tool sets `"additionalProperties": false`.
+
+```
+$ toolcensus check census.json examples/mcp-tools.json
+calls 5: ok 2, ignored 1, rejected 2  accepted 60.0%
+ignored        1  Bash(command, description)  no effect: description
+rejected       1  Edit(file_path, new_string, old_string, replace_all)  unknown tool
+rejected       1  Grep(output_mode, pattern)  unknown tool
+```
+
 ## Tests
 
 ```

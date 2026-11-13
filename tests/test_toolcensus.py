@@ -67,3 +67,21 @@ def test_cli_census_then_check(tmp_path, capsys):
     assert main(["check", str(out), str(sch)]) == 1  # one rejected shape: nonzero exit
     text = capsys.readouterr().out
     assert "accepted 50.0%" in text and "unknown argument background" in text
+
+
+def test_check_takes_mcp_anthropic_and_openai_tool_lists(tmp_path):
+    js = {"type": "object", "properties": {"file_path": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["file_path"]}
+    strict = dict(js, additionalProperties=False)
+    f = write(tmp_path, [rec("Read", file_path="a"), rec("Read", file_path="a", limit="9"), rec("Read", file_path="a", extra=1), rec("Glob")])
+    cen = census([f])
+    docs = [
+        {"tools": [{"name": "Read", "inputSchema": js}]},                                  # MCP tools/list result
+        {"jsonrpc": "2.0", "id": 1, "result": {"tools": [{"name": "Read", "inputSchema": js}]}},  # whole JSON-RPC reply
+        [{"name": "Read", "input_schema": js}],                                            # Anthropic tools
+        [{"type": "function", "function": {"name": "Read", "parameters": js}}],           # OpenAI tools
+    ]
+    for doc in docs:
+        res = check(cen, doc)
+        assert (res["ok"], res["ignored"], res["rejected"]) == (1, 1, 2), doc  # str limit and unknown Glob rejected
+    res = check(cen, {"tools": [{"name": "Read", "inputSchema": strict}]})
+    assert (res["ok"], res["ignored"], res["rejected"]) == (1, 0, 3)  # additionalProperties false rejects extra

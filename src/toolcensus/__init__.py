@@ -5,7 +5,7 @@ tool names, argument names and value types. It never keeps, prints or stores an 
 check: compares each recorded call shape with a schema file for a different tool set and reports, by call count,
 how many shapes are accepted as they are, accepted with an argument that has no effect, or rejected.
 
-Schema file (JSON):
+Schema file (JSON; an MCP, Anthropic or OpenAI tool list also works, see load_schema):
   {"unknown_args": "reject",                       # or "ignore": an argument the tool does not list has no effect
    "tools": {"Read": {"args": {"file_path": "str", "offset": "int"}, "required": ["file_path"],
                       "aliases": {"path": "file_path"}}}}
@@ -15,7 +15,7 @@ import json
 import os
 from collections import Counter, defaultdict
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def _tname(v):
@@ -91,13 +91,48 @@ def classify(shape, schema):
     if missing:
         return "rejected", "missing " + ",".join(missing)
     if extra:
-        if schema.get("unknown_args", "reject") == "ignore":
+        if spec.get("unknown_args", schema.get("unknown_args", "reject")) == "ignore":
             return "ignored", "no effect: " + ",".join(extra)
         return "rejected", "unknown argument " + ",".join(extra)
     return "ok", ""
 
 
+_JSON_TYPES = {"string": "str", "integer": "int", "number": "number", "boolean": "bool", "array": "list", "object": "dict", "null": "null"}
+
+
+def _tool_defs(doc):
+    """Yield (name, JSON Schema) from an MCP tools/list result, an Anthropic tools list or an OpenAI tools list."""
+    items = doc.get("tools") if isinstance(doc, dict) else doc
+    if isinstance(doc, dict) and isinstance(doc.get("result"), dict):  # whole JSON-RPC response
+        items = doc["result"].get("tools")
+    for t in items if isinstance(items, list) else []:
+        if not isinstance(t, dict):
+            continue
+        f = t.get("function") if isinstance(t.get("function"), dict) else t
+        js = f.get("inputSchema") or f.get("input_schema") or f.get("parameters") or {}
+        if isinstance(f.get("name"), str):
+            yield f["name"], js if isinstance(js, dict) else {}
+
+
+def load_schema(doc):
+    """Return a toolcensus schema. A native schema (tools as an object) passes through; a list of tool
+    definitions with JSON Schema arguments (MCP, Anthropic, OpenAI) is converted. Unknown arguments are
+    ignored unless the tool's schema sets additionalProperties to false."""
+    if isinstance(doc, dict) and isinstance(doc.get("tools"), dict):
+        return doc
+    tools = {}
+    for name, js in _tool_defs(doc):
+        args = {}
+        for arg, p in (js.get("properties") or {}).items():
+            t = p.get("type") if isinstance(p, dict) else None
+            args[arg] = _JSON_TYPES.get(t, "any") if isinstance(t, str) else "any"
+        tools[name] = {"args": args, "required": [r for r in js.get("required") or [] if r in args],
+                       "unknown_args": "reject" if js.get("additionalProperties") is False else "ignore"}
+    return {"tools": tools}
+
+
 def check(cen, schema):
+    schema = load_schema(schema)
     rows, total = [], Counter()
     for s in cen["sets"]:
         c, why = classify(s, schema)
