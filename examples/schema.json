@@ -1,0 +1,8 @@
+{
+  "unknown_args": "ignore",
+  "tools": {
+    "Read": {"args": {"file_path": "str", "offset": "int", "limit": "int"}, "required": ["file_path"]},
+    "Edit": {"args": {"file_path": "str", "old_string": "str", "new_string": "str"}, "required": ["file_path", "old_string", "new_string"]},
+    "Bash": {"args": {"command": "str", "timeout": "number"}, "required": ["command"]}
+  }
+}
